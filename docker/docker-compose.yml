@@ -1,0 +1,83 @@
+version: "2.1"
+services:
+  rabbitmq:
+    image: rabbitmq:3.10.7-management
+    hostname: rabbitmq
+    container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=$RABBITMQ_USER
+      - RABBITMQ_DEFAULT_PASS=$RABBITMQ_PASS
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit disk_free_limit 2147483648 #for rabbit not to crash mem 2 Gbit
+    volumes:
+      - ./rabbitmq:/var/lib/rabbitmq
+      - ./init/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./init/definitions.json:/etc/rabbitmq/definitions.json:ro
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+#    networks:
+#      - my_network
+
+  elasticsearch:
+    image: elasticsearch:7.17.9
+    container_name: elasticsearch7
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+  kibana:
+      container_name: kibana7
+      image: kibana:7.17.9
+      environment:
+        - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      ports:
+        - 5601:5601
+      depends_on:
+        - elasticsearch
+
+  logstash:
+      container_name: logstash
+      image: logstash:7.17.9
+      #     args:
+      #       ELK_VERSION: $ELK_VERSION
+      volumes:
+        - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+        - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      ports:
+        - "6000:5000"
+        - "9600:9600"
+        - "9999:9999"
+      environment:
+        LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+      #   networks:
+      #     - elk
+      depends_on:
+        - elasticsearch
+  # app:
+  #     container_name: news_app
+  #     build:
+  #       context: ..
+  #       dockerfile: docker/app/Dockerfile
+
+volumes:
+  elasticsearch-data:
+    driver: local
+
+#networks:
+#  my_network:
+#    name: my_network
+#    driver: bridge
